@@ -1,19 +1,15 @@
 {
   "name": "kinetic-forged-fitness",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "version": "1.0.0",
+  "description": "Kinetic Forged Fitness is an intelligent fitness partner that forges personalized workout plans to build your momentum and help you achieve your goals.",
+  "main": "index.js",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "build": "mkdir -p dist && cp index.html dist/index.html && cp index.css dist/index.css && esbuild index.tsx --bundle --outfile=dist/bundle.js --loader:.tsx=tsx"
   },
-  "dependencies": {
-    "@google/genai": "^0.12.0"
-  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
   "devDependencies": {
-    "@types/node": "^22.14.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "esbuild": "^0.21.4"
   }
 }
