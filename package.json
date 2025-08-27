@@ -9,6 +9,4 @@
   "devDependencies": {
     "esbuild": "^0.20.2"
   }
-}git add package.json
-git commit -m "feat: Configure final build script for Netlify"
-git push
+}
