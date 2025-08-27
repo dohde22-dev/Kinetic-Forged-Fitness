@@ -4,27 +4,6 @@
  */
 import { GoogleGenAI, Type } from '@google/genai';
 
-// --- Auth DOM Elements ---
-const authScreen = document.getElementById('auth-screen') as HTMLDivElement;
-const appContainer = document.getElementById('app-container') as HTMLDivElement;
-const loginView = document.getElementById('login-view') as HTMLDivElement;
-const registerView = document.getElementById('register-view') as HTMLDivElement;
-const forgotPasswordView = document.getElementById('forgot-password-view') as HTMLDivElement;
-const loginForm = document.getElementById('login-form') as HTMLFormElement;
-const registerForm = document.getElementById('register-form') as HTMLFormElement;
-const forgotPasswordRequestForm = document.getElementById('forgot-password-request-form') as HTMLFormElement;
-const forgotPasswordResetForm = document.getElementById('forgot-password-reset-form') as HTMLFormElement;
-const showRegisterViewBtn = document.getElementById('show-register-view') as HTMLAnchorElement;
-const showLoginViewBtn = document.getElementById('show-login-view') as HTMLAnchorElement;
-const showForgotPasswordViewBtn = document.getElementById('show-forgot-password-view') as HTMLAnchorElement;
-const backToLoginBtn = document.getElementById('back-to-login') as HTMLAnchorElement;
-const stayLoggedInCheckbox = document.getElementById('stay-logged-in') as HTMLInputElement;
-const authError = document.getElementById('auth-error') as HTMLParagraphElement;
-const logoutBtn = document.getElementById('logout-btn') as HTMLButtonElement;
-const headerUsername = document.getElementById('header-username') as HTMLSpanElement;
-const secretQuestionDisplay = document.getElementById('secret-question-display') as HTMLParagraphElement;
-
-
 // --- App DOM Elements ---
 const navTabs = document.querySelectorAll('.nav-tab');
 const screens = document.querySelectorAll('.screen');
@@ -48,7 +27,8 @@ const programIdeasContainer = document.getElementById('program-ideas-container')
 const programIdeasLoader = document.getElementById('program-ideas-loader') as HTMLDivElement;
 const createNewProgramBtn = document.getElementById('create-new-program-btn') as HTMLButtonElement;
 const customProgramsContainer = document.getElementById('custom-programs-container') as HTMLDivElement;
-const discoverDurationOptions = document.getElementById('discover-duration-options') as HTMLDivElement;
+const generateFromIdeaForm = document.getElementById('generate-from-idea-form') as HTMLFormElement;
+const programIdeaInput = document.getElementById('program-idea-input') as HTMLTextAreaElement;
 
 // Create Program Modal
 const createProgramModal = document.getElementById('create-program-modal') as HTMLDivElement;
@@ -73,6 +53,12 @@ const scheduleProgramModal = document.getElementById('schedule-program-modal') a
 const scheduleProgramForm = document.getElementById('schedule-program-form') as HTMLFormElement;
 const scheduleModalTitle = document.getElementById('schedule-modal-title') as HTMLHeadingElement;
 const scheduleModalCloseBtn = scheduleProgramModal.querySelector('.modal-close-btn') as HTMLButtonElement;
+const scheduleStartDateInput = document.getElementById('schedule-start-date') as HTMLInputElement;
+const scheduleCalendarGrid = document.getElementById('schedule-calendar-grid') as HTMLDivElement;
+const scheduleCalendarMonthYear = document.getElementById('schedule-calendar-month-year') as HTMLHeadingElement;
+const schedulePrevMonthBtn = document.getElementById('schedule-prev-month-btn') as HTMLButtonElement;
+const scheduleNextMonthBtn = document.getElementById('schedule-next-month-btn') as HTMLButtonElement;
+
 
 // Program Details Modal
 const programDetailsModal = document.getElementById('program-details-modal') as HTMLDivElement;
@@ -93,6 +79,15 @@ const overviewModalStartBtn = document.getElementById('overview-modal-start-btn'
 const postWorkoutFeedbackModal = document.getElementById('post-workout-feedback-modal') as HTMLDivElement;
 const postWorkoutFeedbackForm = document.getElementById('post-workout-feedback-form') as HTMLFormElement;
 const feedbackModalCloseBtn = postWorkoutFeedbackModal.querySelector('.modal-close-btn') as HTMLButtonElement;
+
+// History Modal
+const workoutHistoryModal = document.getElementById('workout-history-modal') as HTMLDivElement;
+const historyModalCloseBtn = workoutHistoryModal.querySelector('.modal-close-btn') as HTMLButtonElement;
+const historyModalTitle = document.getElementById('history-modal-title') as HTMLHeadingElement;
+const historyModalDate = document.getElementById('history-modal-date') as HTMLParagraphElement;
+const historyModalIntensity = document.getElementById('history-modal-intensity') as HTMLParagraphElement;
+const historyModalNotes = document.getElementById('history-modal-notes') as HTMLParagraphElement;
+const historyModalExercisesContainer = document.getElementById('history-modal-exercises-container') as HTMLDivElement;
 
 
 // --- Gemini AI Setup ---
@@ -119,11 +114,21 @@ interface Exercise {
   description: string;
 }
 
+interface SetPerformance {
+    weight?: number;
+    reps?: number;
+    status: 'done' | 'missed';
+}
+
+interface PerformedExercise extends Exercise {
+    performance: SetPerformance[];
+}
+
 interface WorkoutPlan {
   id: string;
   name: string;
   date: string; // The scheduled date of the workout (YYYY-MM-DD)
-  exercises: Exercise[];
+  exercises: (Exercise | PerformedExercise)[];
   completed: boolean;
   programId?: string;
   workoutIndex?: number;
@@ -210,7 +215,7 @@ const workoutExtractionSchema = {
                                 name: { type: Type.STRING, description: "The name of the exercise (e.g., 'Bench Press')." },
                                 sets: { type: Type.INTEGER, description: "The number of sets to perform." },
                                 metricValue: { type: Type.STRING, description: "The target value for the metric (e.g., '8-12', '500', '1.5')." },
-                                metricUnit: { type: Type.STRING, description: "The unit for the metric. Must be one of: 'reps', 'meters', 'yards', 'miles'." },
+                                metricUnit: { type: Type.STRING, description: "The unit for the metric. Must be one of: 'reps', 'seconds', 'meters', 'feet', 'yards', 'miles'." },
                                 description: { type: Type.STRING, description: "Optional notes, tempo, or rest period information for the exercise." }
                             },
                             required: ["name", "sets", "metricValue", "metricUnit"]
@@ -224,11 +229,9 @@ const workoutExtractionSchema = {
     required: ["programName", "workouts"]
 };
 
-
-let loggedInUser: string | null = null;
-let userToResetPassword: string | null = null;
 let currentWorkout: WorkoutPlan | null = null;
 let calendarDate = new Date();
+let scheduleCalendarDate = new Date();
 let generatedProgramToSave: any | null = null; // Holds AI-generated program data before saving
 let dataForWorkoutOverviewModal: { workout: CustomWorkout, program: CustomProgram, scheduledDate: string } | null = null;
 
@@ -236,8 +239,8 @@ let dataForWorkoutOverviewModal: { workout: CustomWorkout, program: CustomProgra
 // --- User Data Storage Helpers ---
 
 function getUserKey(key: string): string {
-    if (!loggedInUser) throw new Error("No user logged in. Cannot access user data.");
-    return `${loggedInUser}_${key}`;
+    // No user login, so we use a constant prefix for all data.
+    return `kinetic_fitness_${key}`;
 }
 
 function saveUserData(key: string, data: any) {
@@ -253,14 +256,10 @@ function loadUserData<T>(key: string, defaultValue: T): T {
 // --- Main App Initialization Logic ---
 
 /**
- * Initializes the application after a user has logged in.
+ * Initializes the application.
  * Sets up event listeners and renders user-specific data.
  */
 function initializeApp() {
-    headerUsername.textContent = loggedInUser;
-    appContainer.classList.remove('hidden');
-    authScreen.classList.add('hidden');
-    
     // Tab navigation
     navTabs.forEach(tab => {
         tab.addEventListener('click', () => switchTab(tab.getAttribute('data-tab')!));
@@ -272,11 +271,11 @@ function initializeApp() {
     loadAndRenderCustomPrograms();
 
     // Event Listeners
-    exercisesContainer.addEventListener('click', handleSetActionClick);
+    exercisesContainer.addEventListener('click', handleWorkoutInteraction);
     profileForm.addEventListener('input', handleProfileChange);
     finishWorkoutBtn.addEventListener('click', handleFinishWorkout);
     discoverProgramsBtn.addEventListener('click', handleDiscoverPrograms);
-    discoverDurationOptions.addEventListener('click', handleGenerateLongTermProgramClick);
+    generateFromIdeaForm.addEventListener('submit', handleGenerateFromIdea);
     createNewProgramBtn.addEventListener('click', openCreateProgramModal);
     modalCloseBtn.addEventListener('click', closeCreateProgramModal);
     createProgramForm.addEventListener('submit', handleSaveProgram);
@@ -292,6 +291,14 @@ function initializeApp() {
     });
     scheduleModalCloseBtn.addEventListener('click', closeScheduleModal);
     scheduleProgramForm.addEventListener('submit', handleSaveSchedule);
+    schedulePrevMonthBtn.addEventListener('click', () => {
+        scheduleCalendarDate.setMonth(scheduleCalendarDate.getMonth() - 1);
+        renderScheduleCalendar(scheduleCalendarDate.getFullYear(), scheduleCalendarDate.getMonth());
+    });
+    scheduleNextMonthBtn.addEventListener('click', () => {
+        scheduleCalendarDate.setMonth(scheduleCalendarDate.getMonth() + 1);
+        renderScheduleCalendar(scheduleCalendarDate.getFullYear(), scheduleCalendarDate.getMonth());
+    });
     detailsModalCloseBtn.addEventListener('click', closeProgramDetailsModal);
     saveDiscoveredProgramBtn.addEventListener('click', handleSaveDiscoveredProgram);
     overviewModalCloseBtn.addEventListener('click', closeWorkoutOverviewModal);
@@ -300,14 +307,17 @@ function initializeApp() {
     feedbackModalCloseBtn.addEventListener('click', () => {
         postWorkoutFeedbackModal.classList.add('hidden');
     });
+    historyModalCloseBtn.addEventListener('click', closeWorkoutHistoryModal);
 
     // Event delegation for dynamic elements
     createProgramModal.addEventListener('click', handleModalClickDelegation);
     customProgramsContainer.addEventListener('click', handleCustomProgramClick);
     calendarGrid.addEventListener('click', handleCalendarClick);
+    scheduleCalendarGrid.addEventListener('click', handleScheduleCalendarClick);
     programIdeasContainer.addEventListener('click', handleProgramIdeasClick);
     document.getElementById('todays-training-wrapper')?.addEventListener('click', handleStartScheduledWorkoutClick);
     noActiveWorkoutPlaceholder.addEventListener('click', handleStartScheduledWorkoutClick);
+    (document.getElementById('history-screen') as HTMLDivElement).addEventListener('click', handleHistoryClick);
 
     // Initial renders
     renderCalendar(calendarDate.getFullYear(), calendarDate.getMonth());
@@ -342,7 +352,8 @@ function switchTab(tabId: string) {
  */
 function handleStartScheduledWorkoutClick(event: MouseEvent) {
     const target = event.target as HTMLElement;
-    const startBtn = target.closest<HTMLButtonElement>('.start-scheduled-workout-btn');
+    // FIX: Cast return value of closest to access dataset property.
+    const startBtn = target.closest<HTMLButtonElement>('.start-scheduled-workout-btn') as HTMLButtonElement | null;
     if (!startBtn) return;
 
     const { programId, workoutIndex } = startBtn.dataset;
@@ -396,7 +407,18 @@ function renderWorkoutScreen() {
 
         const todayString = getYYYYMMDD(new Date());
         const schedule = loadUserData<ScheduledWorkout[]>('workoutSchedule', []);
-        const todaysWorkouts = schedule.filter(w => w.date === todayString);
+        const scheduledForToday = schedule.filter(w => w.date === todayString);
+
+        // Get today's completed workouts to filter them out
+        const history = loadUserData<WorkoutPlan[]>('workoutHistory', []);
+        const completedToday = history.filter(h => h.date === todayString && h.completed);
+
+        const todaysWorkouts = scheduledForToday.filter(scheduled => {
+            return !completedToday.some(completed =>
+                completed.programId === scheduled.programId &&
+                completed.workoutIndex === scheduled.workoutIndex
+            );
+        });
 
         if (todaysWorkouts.length > 0) {
             const programs = loadUserData<CustomProgram[]>('customPrograms', []);
@@ -427,10 +449,18 @@ function renderWorkoutScreen() {
             });
             noActiveWorkoutPlaceholder.innerHTML = contentHTML;
         } else {
-            noActiveWorkoutPlaceholder.innerHTML = `
-                <h2>No Workout Scheduled</h2>
-                <p>No workout is scheduled for today. You can start one from the Library tab.</p>
-            `;
+            // Check if workouts were scheduled but are all complete
+            if (scheduledForToday.length > 0) {
+                noActiveWorkoutPlaceholder.innerHTML = `
+                    <h2>All Workouts Complete!</h2>
+                    <p>You've finished all your scheduled workouts for today. Great job!</p>
+                `;
+            } else {
+                noActiveWorkoutPlaceholder.innerHTML = `
+                    <h2>No Workout Scheduled</h2>
+                    <p>No workout is scheduled for today. You can start one from the Library tab.</p>
+                `;
+            }
         }
     }
 }
@@ -518,9 +548,11 @@ function renderWorkout(plan: WorkoutPlan) {
   const profile = loadUserData<Profile>('userProfile', {});
   const weightUnit = profile.weightUnit || 'lbs';
 
-  plan.exercises.forEach((exercise) => {
-    const exerciseCard = document.createElement('div');
+  plan.exercises.forEach((exercise, index) => {
+    // FIX: Add type annotation to access dataset property.
+    const exerciseCard: HTMLDivElement = document.createElement('div');
     exerciseCard.className = 'exercise-card';
+    exerciseCard.dataset.exerciseIndex = index.toString();
 
     let setsTableHTML = `
       <table class="sets-table">
@@ -529,24 +561,21 @@ function renderWorkout(plan: WorkoutPlan) {
             <th>Set</th>
             <th>Weight (${weightUnit})</th>
             <th>Reps</th>
-            <th>Status</th>
+            <th>Complete</th>
           </tr>
         </thead>
         <tbody>
     `;
     for (let i = 1; i <= exercise.sets; i++) {
+      const setPerformance = (exercise as PerformedExercise).performance?.[i-1];
+      const isDone = setPerformance?.status === 'done';
       setsTableHTML += `
-        <tr>
+        <tr class="${isDone ? 'done' : ''}" data-set-index="${i-1}">
           <td data-label="Set">${i}</td>
-          <td data-label="Weight (${weightUnit})"><input type="number" placeholder="-" aria-label="Weight (${weightUnit}) for ${exercise.name} set ${i}"></td>
-          <td data-label="Reps"><input type="number" placeholder="-" aria-label="Reps for ${exercise.name} set ${i}"></td>
-          <td class="set-actions" data-label="Actions">
-            <button class="set-done-btn btn-icon" aria-label="Mark ${exercise.name} set ${i} as complete">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425z"/></svg>
-            </button>
-            <button class="set-missed-btn btn-icon" aria-label="Mark ${exercise.name} set ${i} as missed">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/></svg>
-            </button>
+          <td data-label="Weight (${weightUnit})"><input type="number" placeholder="-" value="${setPerformance?.weight || ''}" aria-label="Weight (${weightUnit}) for ${exercise.name} set ${i}"></td>
+          <td data-label="Reps"><input type="number" placeholder="-" value="${setPerformance?.reps || ''}" aria-label="Reps for ${exercise.name} set ${i}"></td>
+          <td data-label="Complete">
+            <button class="set-status-btn" data-action="toggle-set" aria-label="Toggle set ${i} completion"></button>
           </td>
         </tr>
       `;
@@ -555,7 +584,12 @@ function renderWorkout(plan: WorkoutPlan) {
 
     exerciseCard.innerHTML = `
       <h3>${exercise.name}</h3>
-      <p class="details">${exercise.sets} sets of ${formatMetric(exercise.metricValue, exercise.metricUnit)}</p>
+      <div class="exercise-details">
+        <p>Sets: ${exercise.sets}</p>
+        <button class="exercise-metric" data-action="edit-metric">
+            Target: <span>${formatMetric(exercise.metricValue, exercise.metricUnit)}</span>
+        </button>
+      </div>
       <p>${exercise.description}</p>
       ${setsTableHTML}
     `;
@@ -565,47 +599,146 @@ function renderWorkout(plan: WorkoutPlan) {
 }
 
 /**
- * Handles clicks on the 'Done' or 'Missed' buttons for a workout set.
- * Manages 'done' and 'missed' states, ensuring they are mutually exclusive,
- * and disables/enables inputs accordingly.
+ * Handles all user interactions within an active workout, like completing a set
+ * or editing an exercise metric. Uses event delegation.
  * @param {MouseEvent} event The click event.
  */
-function handleSetActionClick(event: MouseEvent) {
+function handleWorkoutInteraction(event: MouseEvent) {
     const target = event.target as HTMLElement;
-    const doneBtn = target.closest<HTMLButtonElement>('.set-done-btn');
-    const missedBtn = target.closest<HTMLButtonElement>('.set-missed-btn');
 
-    if (!doneBtn && !missedBtn) return;
+    // Handle toggling a set's completion status
+    const toggleBtn = target.closest<HTMLButtonElement>('.set-status-btn');
+    if (toggleBtn) {
+        handleToggleSet(toggleBtn);
+        return;
+    }
 
-    const row = target.closest('tr');
-    if (!row) return;
-    
-    const inputs = row.querySelectorAll('input');
-
-    const toggleState = (stateClass: 'done' | 'missed', oppositeClass: 'done' | 'missed') => {
-        // If the row already has this class, we're toggling it OFF.
-        if (row.classList.contains(stateClass)) {
-            row.classList.remove(stateClass);
-            inputs.forEach(input => input.disabled = false);
-        } else {
-            // Otherwise, we're toggling it ON.
-            // Add the new state, remove the opposite, and disable inputs.
-            row.classList.add(stateClass);
-            row.classList.remove(oppositeClass);
-            inputs.forEach(input => input.disabled = true);
-        }
-    };
-
-    if (doneBtn) {
-        toggleState('done', 'missed');
-    } else if (missedBtn) {
-        toggleState('missed', 'done');
+    // Handle editing an exercise's metric (reps, time, distance)
+    const editMetricBtn = target.closest<HTMLButtonElement>('.exercise-metric');
+    if (editMetricBtn) {
+        handleEditMetric(editMetricBtn);
+        return;
     }
 }
+
+/**
+ * Toggles the completion status of a single set.
+ * @param {HTMLButtonElement} button The status button that was clicked.
+ */
+function handleToggleSet(button: HTMLButtonElement) {
+    if (!currentWorkout) return;
+    // FIX: Cast return value of closest to access dataset property.
+    const row = button.closest('tr') as HTMLTableRowElement | null;
+    // FIX: Cast return value of closest to access dataset property.
+    const card = button.closest('.exercise-card') as HTMLElement | null;
+    if (!row || !card) return;
+
+    const exerciseIndex = parseInt(card.dataset.exerciseIndex!, 10);
+    const setIndex = parseInt(row.dataset.setIndex!, 10);
+
+    const exercise = currentWorkout.exercises[exerciseIndex] as PerformedExercise;
+    if (!exercise?.performance) return;
+    
+    const isDone = row.classList.toggle('done');
+    exercise.performance[setIndex].status = isDone ? 'done' : 'missed';
+}
+
+/**
+ * Creates and displays an inline editor for an exercise's metric.
+ * @param {HTMLButtonElement} button The metric button that was clicked.
+ */
+function handleEditMetric(button: HTMLButtonElement) {
+    if (!currentWorkout) return;
+    // FIX: Cast return value of closest to access dataset property.
+    const card = button.closest('.exercise-card') as HTMLElement | null;
+    if (!card) return;
+    
+    const exerciseIndex = parseInt(card.dataset.exerciseIndex!, 10);
+    const exercise = currentWorkout.exercises[exerciseIndex];
+    if (!exercise) return;
+
+    const originalDisplay = button.querySelector('span') as HTMLSpanElement;
+
+    // Prevent multiple editors from opening
+    if (card.querySelector('.metric-editor-wrapper')) return;
+
+    // Create a temporary element to hold the editor
+    const editorWrapper = document.createElement('div');
+    editorWrapper.className = 'metric-editor-wrapper';
+    editorWrapper.innerHTML = `
+        <div class="metric-editor">
+            <input type="text" class="metric-editor-value" value="${exercise.metricValue}">
+            <select class="metric-editor-unit">
+                <option value="reps">reps</option>
+                <option value="seconds">seconds</option>
+                <option value="meters">meters</option>
+                <option value="feet">feet</option>
+                <option value="yards">yards</option>
+                <option value="miles">miles</option>
+            </select>
+            <button class="btn-save-metric">Save</button>
+            <button class="btn-cancel-metric btn-tertiary">Cancel</button>
+        </div>
+    `;
+    (editorWrapper.querySelector('.metric-editor-unit') as HTMLSelectElement).value = exercise.metricUnit;
+
+    // Hide original button, show editor
+    button.style.display = 'none';
+    button.parentElement!.insertBefore(editorWrapper, button.nextSibling);
+
+    const saveBtn = editorWrapper.querySelector('.btn-save-metric') as HTMLButtonElement;
+    const cancelBtn = editorWrapper.querySelector('.btn-cancel-metric') as HTMLButtonElement;
+    const valueInput = editorWrapper.querySelector('.metric-editor-value') as HTMLInputElement;
+    const unitSelect = editorWrapper.querySelector('.metric-editor-unit') as HTMLSelectElement;
+
+    // Auto-focus the input for a better user experience
+    valueInput.focus();
+    valueInput.select();
+
+    const cleanup = () => {
+        editorWrapper.remove();
+        button.style.display = '';
+    };
+
+    saveBtn.addEventListener('click', () => {
+        const newValue = valueInput.value.trim();
+        const newUnit = unitSelect.value;
+        if (newValue) {
+            // Update data model
+            exercise.metricValue = newValue;
+            exercise.metricUnit = newUnit;
+            // Update UI
+            originalDisplay.textContent = formatMetric(newValue, newUnit);
+        }
+        cleanup();
+    });
+
+    cancelBtn.addEventListener('click', cleanup);
+}
+
 
 function handleSaveFeedback(event: SubmitEvent) {
     event.preventDefault();
     if (!currentWorkout) return;
+
+    // Capture weight/reps from inputs and update the data model.
+    // The 'status' is already up-to-date from handleToggleSet.
+    const exerciseCards = exercisesContainer.querySelectorAll('.exercise-card');
+    currentWorkout.exercises.forEach((exercise, index) => {
+        const card = exerciseCards[index];
+        if (!card) return;
+        const rows = card.querySelectorAll<HTMLTableRowElement>('.sets-table tbody tr');
+        rows.forEach((row, setIndex) => {
+            const weightInput = row.querySelector('input[type="number"][aria-label^="Weight"]') as HTMLInputElement;
+            const repsInput = row.querySelector('input[type="number"][aria-label^="Reps"]') as HTMLInputElement;
+
+            const performanceSet = (exercise as PerformedExercise).performance[setIndex];
+            if (performanceSet) {
+                performanceSet.weight = parseFloat(weightInput.value) || undefined;
+                performanceSet.reps = parseFloat(repsInput.value) || undefined;
+            }
+        });
+    });
 
     const formData = new FormData(postWorkoutFeedbackForm);
     const intensity = formData.get('intensity');
@@ -657,6 +790,117 @@ function renderHistory() {
     const history = loadUserData<WorkoutPlan[]>('workoutHistory', []);
     const completedCount = history.filter(w => w.completed).length;
     workoutsCompletedStat.textContent = completedCount.toString();
+
+    const historyListContainer = document.getElementById('completed-workouts-list');
+    if (!historyListContainer) return;
+
+    // Sort history from newest to oldest for display
+    history.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    if (history.length === 0) {
+        historyListContainer.innerHTML = '<p>No completed workouts yet. Go crush one!</p>';
+        return;
+    }
+    
+    historyListContainer.innerHTML = ''; // Clear previous entries
+    history.forEach((workout, index) => {
+        // FIX: Add type annotation to access dataset property.
+        const card: HTMLDivElement = document.createElement('div');
+        card.className = 'history-workout-card';
+        card.dataset.historyIndex = index.toString();
+        
+        // Ensure date parsing is timezone-agnostic for display
+        const date = new Date(workout.date + 'T00:00:00'); 
+        const formattedDate = date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+
+        card.innerHTML = `
+            <h4>${workout.name}</h4>
+            <p>Completed: ${formattedDate}</p>
+            <p>Intensity: <strong>${workout.intensity || 'N/A'}/10</strong></p>
+        `;
+        historyListContainer.appendChild(card);
+    });
+}
+
+function handleHistoryClick(event: MouseEvent) {
+    const target = event.target as HTMLElement;
+    // FIX: Cast return value of closest to access dataset property.
+    const card = target.closest<HTMLDivElement>('.history-workout-card') as HTMLDivElement | null;
+    if (card && card.dataset.historyIndex) {
+        const history = loadUserData<WorkoutPlan[]>('workoutHistory', []);
+        // Sort history again to ensure the index matches the rendered order
+        history.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        const workout = history[parseInt(card.dataset.historyIndex, 10)];
+        if (workout) {
+            openWorkoutHistoryModal(workout);
+        }
+    }
+}
+
+function openWorkoutHistoryModal(workout: WorkoutPlan) {
+    historyModalTitle.textContent = workout.name;
+    const date = new Date(workout.date + 'T00:00:00');
+    historyModalDate.textContent = `Completed on ${date.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`;
+    historyModalIntensity.innerHTML = `<strong>Intensity:</strong> ${workout.intensity}/10`;
+    historyModalNotes.textContent = workout.notes || 'No notes were added for this workout.';
+    
+    const profile = loadUserData<Profile>('userProfile', {});
+    const weightUnit = profile.weightUnit || 'lbs';
+    
+    historyModalExercisesContainer.innerHTML = '';
+    
+    (workout.exercises as PerformedExercise[]).forEach(exercise => {
+        if (!exercise.performance) return; // Skip if for some reason performance data is missing
+
+        const exerciseEl = document.createElement('div');
+        exerciseEl.className = 'history-exercise-block';
+
+        let setsTableHTML = `
+            <table class="sets-table">
+                <thead>
+                    <tr>
+                        <th>Set</th>
+                        <th>Target</th>
+                        <th>Weight (${weightUnit})</th>
+                        <th>Reps</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        
+        exercise.performance.forEach((set, index) => {
+            let statusIcon = '';
+            if (set.status === 'done') {
+                statusIcon = `<svg class="status-icon done" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>`;
+            } else {
+                statusIcon = `<svg class="status-icon missed" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>`;
+            }
+            setsTableHTML += `
+                <tr>
+                    <td data-label="Set">${index + 1}</td>
+                    <td data-label="Target">${formatMetric(exercise.metricValue, exercise.metricUnit)}</td>
+                    <td data-label="Weight (${weightUnit})">${set.weight ?? '-'}</td>
+                    <td data-label="Reps">${set.reps ?? '-'}</td>
+                    <td data-label="Status">${statusIcon}</td>
+                </tr>
+            `;
+        });
+
+        setsTableHTML += `</tbody></table>`;
+        
+        exerciseEl.innerHTML = `
+            <h4>${exercise.name}</h4>
+            ${setsTableHTML}
+        `;
+        historyModalExercisesContainer.appendChild(exerciseEl);
+    });
+    
+    workoutHistoryModal.classList.remove('hidden');
+}
+
+function closeWorkoutHistoryModal() {
+    workoutHistoryModal.classList.add('hidden');
 }
 
 // --- Library Screen Logic ---
@@ -737,7 +981,7 @@ async function generateFullProgram(idea: ProgramIdea) {
         ${profileContext}
 
         The program should include 3-5 distinct workout days. For each workout, provide a name and a list of 5-8 exercises.
-        For each exercise, specify its name, the number of sets, a metricValue (e.g., '8-12' for reps, or '500' for distance), and a metricUnit from the list: 'reps', 'meters', 'yards', 'miles'. For traditional lifting, use 'reps'. For cardio like running or rowing, use a distance unit.
+        For each exercise, specify its name, the number of sets, a metricValue (e.g., '8-12' for reps, or '500' for distance), and a metricUnit from the list: 'reps', 'seconds', 'meters', 'feet', 'yards', 'miles'. For traditional lifting, use 'reps'. For cardio like running or rowing, use a distance unit.
         Format the result as a single JSON object that strictly adheres to the provided schema. Do not include any explanatory text or markdown formatting.`;
         
         const response = await ai.models.generateContent({
@@ -761,47 +1005,38 @@ async function generateFullProgram(idea: ProgramIdea) {
     }
 }
 
-function handleGenerateLongTermProgramClick(event: MouseEvent) {
-    const target = event.target as HTMLElement;
-    const button = target.closest<HTMLButtonElement>('.discover-duration-btn');
-    if (button) {
-        const duration = parseInt(button.dataset.duration!, 10);
-        if (!isNaN(duration)) {
-            generateLongTermProgram(duration);
-        }
+async function handleGenerateFromIdea(event: SubmitEvent) {
+    event.preventDefault();
+    const idea = programIdeaInput.value.trim();
+    if (!idea) {
+        alert('Please enter your program idea.');
+        return;
     }
-}
 
-async function generateLongTermProgram(duration: number) {
     loader.classList.remove('hidden');
-    (loader.querySelector('p') as HTMLParagraphElement).textContent = `Generating your ${duration}-week program... This might take a moment.`;
+    (loader.querySelector('p') as HTMLParagraphElement).textContent = `Generating your custom program... This might take a moment.`;
 
     try {
         const profile = loadUserData<Profile>('userProfile', {});
         const profileContext = profile.goal ? `Tailor this for a user with the primary fitness goal of: ${profile.goal}.` : '';
 
         const prompt = `
-Generate a comprehensive and structured ${duration}-week workout program.
-Program Name: A creative name for a ${duration}-week plan.
+Act as an expert fitness coach. Generate a comprehensive and structured workout program based on the user's request: "${idea}".
+
+Program Name: A creative name based on the user's request.
 Description: A detailed description of the program's purpose, progression, and weekly structure.
 ${profileContext}
 
 **Constraint Checklist & Formatting Rules:**
-1.  **Full Weekly Schedule:** The "workouts" array MUST contain exactly ${duration * 7} total entries, representing every single day (Monday to Sunday) for all ${duration} weeks.
+1.  **Full Weekly Schedule:** The "workouts" array MUST contain an entry for every single day (e.g., Monday to Sunday) for the entire duration of the plan.
 2.  **Start on Monday:** Each week's schedule must begin on a Monday.
 3.  **Integrate Rest Days:** Strategically include 'Rest' days within each 7-day week. A typical week should have 2-4 rest days.
 4.  **Workout Naming Convention:** Name each entry clearly with its week, day, and purpose.
     - For training days: "Week 1, Day 1 (Monday): Upper Body Strength"
     - For rest days: "Week 1, Day 2 (Tuesday): Rest"
 5.  **Rest Day Object:** For a 'Rest' day, the workout object must have an EMPTY "exercises" array (\`"exercises": []\`).
-6.  **Exercise Details:** For training days, provide a list of 5-8 exercises. For each exercise, specify its name, number of sets, a brief description, a \`metricValue\` (e.g., '8-12' or '500'), and a \`metricUnit\` from a list: 'reps', 'meters', 'yards', 'miles'. For traditional lifting, use 'reps'. For cardio, use a distance unit.
+6.  **Exercise Details:** For training days, provide a list of 5-8 exercises. For each exercise, specify its name, number of sets, a brief description, a \`metricValue\` (e.g., '8-12' for reps, or '500' for distance), and a \`metricUnit\` from a list: 'reps', 'seconds', 'meters', 'feet', 'yards', 'miles'. For traditional lifting, use 'reps'. For cardio, use a distance unit.
 7.  **JSON Output:** The final output must be a single, valid JSON object that strictly adheres to the provided schema. Do not include any text, comments, or markdown formatting before or after the JSON object.
-
-Example for a 'Rest' day object in the array:
-{
-  "name": "Week 1, Day 2 (Tuesday): Rest",
-  "exercises": []
-}
 `;
 
         const response = await ai.models.generateContent({
@@ -818,10 +1053,11 @@ Example for a 'Rest' day object in the array:
         openProgramDetailsModal(programData);
 
     } catch (error) {
-        console.error(`Error generating ${duration}-week program:`, error);
-        alert(`Sorry, there was an error generating the ${duration}-week program. Please try again.`);
+        console.error('Error generating program from idea:', error);
+        alert('Sorry, there was an error generating your custom program. Please try again or refine your idea.');
     } finally {
         loader.classList.add('hidden');
+        programIdeaInput.value = '';
     }
 }
 
@@ -837,7 +1073,8 @@ function loadAndRenderCustomPrograms() {
 }
 
 function renderCustomProgramCard(program: CustomProgram) {
-    const card = document.createElement('div');
+    // FIX: Add type annotation to access dataset property.
+    const card: HTMLDivElement = document.createElement('div');
     card.className = 'custom-program-card';
     card.dataset.programId = program.id;
     card.innerHTML = `
@@ -875,7 +1112,17 @@ function startWorkoutFromProgram(workout: CustomWorkout, program: CustomProgram,
         name: `${program.name}: ${workout.name}`,
         date: scheduledDate || getYYYYMMDD(new Date()),
         completed: false,
-        exercises: workout.exercises.map(ex => ({ ...ex })),
+        exercises: workout.exercises.map(ex => {
+            const performance: SetPerformance[] = [];
+            for (let i = 0; i < ex.sets; i++) {
+                performance.push({ status: 'missed' }); // Default to incomplete
+            }
+            const performedExercise: PerformedExercise = {
+                ...ex,
+                performance,
+            };
+            return performedExercise;
+        }),
         programId: program.id,
         workoutIndex: workoutIndex
     };
@@ -889,7 +1136,8 @@ function startWorkoutFromProgram(workout: CustomWorkout, program: CustomProgram,
 
 function handleCustomProgramClick(event: MouseEvent) {
     const target = event.target as HTMLElement;
-    const card = target.closest<HTMLElement>('.custom-program-card');
+    // FIX: Cast return value of closest to access dataset property.
+    const card = target.closest<HTMLElement>('.custom-program-card') as HTMLElement | null;
     if (!card || !card.dataset.programId) return;
 
     const programs = loadUserData<CustomProgram[]>('customPrograms', []);
@@ -919,7 +1167,7 @@ function loadProfile() {
     const profile = loadUserData<Profile>('userProfile', {});
     const weightUnit = profile.weightUnit || 'lbs';
 
-    (profileForm.elements.namedItem('name') as HTMLInputElement).value = loggedInUser || '';
+    (profileForm.elements.namedItem('name') as HTMLInputElement).value = profile.name || '';
     (profileForm.elements.namedItem('age') as HTMLInputElement).value = profile.age?.toString() || '';
     (profileForm.elements.namedItem('weight') as HTMLInputElement).value = profile.weight?.toString() || '';
     (profileForm.elements.namedItem('height') as HTMLInputElement).value = profile.height?.toString() || '';
@@ -941,7 +1189,7 @@ function loadProfile() {
 function handleProfileChange() {
     const formData = new FormData(profileForm);
     const profile: Profile = {
-        name: loggedInUser!, // Username is the constant name
+        name: formData.get('name') as string,
         age: Number(formData.get('age')) || undefined,
         weight: Number(formData.get('weight')) || undefined,
         height: Number(formData.get('height')) || undefined,
@@ -1151,7 +1399,7 @@ async function handleAnalyzeFile() {
         };
 
         const textPart = {
-            text: `Analyze the provided document, which contains a workout plan. Extract the program name, a brief description, and all the workouts. For each workout, extract its name (e.g., 'Day 1' or 'Push Day') and a list of its exercises. For each exercise, extract its name, the number of sets, a metricValue (e.g., '8-12' or '500'), a metricUnit from a list: 'reps', 'meters', 'yards', 'miles', and any description. Format the result as a single JSON object that strictly adheres to the provided schema. Do not include any explanatory text or markdown formatting before or after the JSON object.`
+            text: `Analyze the provided document, which contains a workout plan. Extract the program name, a brief description, and all the workouts. For each workout, extract its name (e.g., 'Day 1' or 'Push Day') and a list of its exercises. For each exercise, extract its name, the number of sets, a metricValue (e.g., '8-12' or '500'), a metricUnit from a list: 'reps', 'seconds', 'meters', 'feet', 'yards', 'miles', and any description. Format the result as a single JSON object that strictly adheres to the provided schema. Do not include any explanatory text or markdown formatting before or after the JSON object.`
         };
 
         const response = await ai.models.generateContent({
@@ -1238,7 +1486,8 @@ function renderCalendar(year: number, month: number) {
     }
     
     for (let day = 1; day <= daysInMonth; day++) {
-        const dayCell = document.createElement('div');
+        // FIX: Add type annotation to access dataset property.
+        const dayCell: HTMLDivElement = document.createElement('div');
         const currentDate = new Date(year, month, day);
         const dateString = getYYYYMMDD(currentDate);
         
@@ -1255,7 +1504,8 @@ function renderCalendar(year: number, month: number) {
         
         const workoutsForDay = schedule.filter(w => w.date === dateString);
         workoutsForDay.forEach(w => {
-            const entry = document.createElement('div');
+            // FIX: Add type annotation to access dataset property.
+            const entry: HTMLDivElement = document.createElement('div');
             entry.className = 'calendar-workout-entry';
 
             const isCompleted = history.some(completedWorkout => 
@@ -1287,9 +1537,11 @@ function renderCalendar(year: number, month: number) {
 
 function handleCalendarClick(event: MouseEvent) {
     const target = event.target as HTMLElement;
-    const entry = target.closest<HTMLElement>('.calendar-workout-entry');
+    // FIX: Cast return value of closest to access dataset property.
+    const entry = target.closest<HTMLElement>('.calendar-workout-entry') as HTMLElement | null;
     if (entry) {
-        const dayCell = entry.closest<HTMLElement>('.calendar-day');
+        // FIX: Cast return value of closest to access dataset property.
+        const dayCell = entry.closest<HTMLElement>('.calendar-day') as HTMLElement | null;
         const scheduledDate = dayCell?.dataset.date;
         const { programId, workoutIndex } = entry.dataset;
 
@@ -1304,6 +1556,58 @@ function handleCalendarClick(event: MouseEvent) {
     }
 }
 
+function renderScheduleCalendar(year: number, month: number) {
+    scheduleCalendarGrid.innerHTML = '';
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    scheduleCalendarMonthYear.textContent = `${monthNames[month]} ${year}`;
+
+    const firstDayOfMonth = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const selectedDate = scheduleStartDateInput.value;
+
+    for (let i = 0; i < firstDayOfMonth; i++) {
+        const emptyCell = document.createElement('div');
+        emptyCell.className = 'schedule-calendar-day other-month';
+        scheduleCalendarGrid.appendChild(emptyCell);
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+        // FIX: Add type annotation to access dataset property.
+        const dayCell: HTMLDivElement = document.createElement('div');
+        const currentDate = new Date(year, month, day);
+        const dateString = getYYYYMMDD(currentDate);
+        
+        dayCell.className = 'schedule-calendar-day';
+        dayCell.dataset.date = dateString;
+        dayCell.textContent = day.toString();
+        
+        if (currentDate.getTime() === today.getTime()) {
+            dayCell.classList.add('today');
+        }
+        if (dateString === selectedDate) {
+            dayCell.classList.add('selected');
+        }
+        
+        scheduleCalendarGrid.appendChild(dayCell);
+    }
+}
+
+function handleScheduleCalendarClick(event: MouseEvent) {
+    const target = event.target as HTMLElement;
+    // FIX: Cast return value of closest to access dataset property.
+    const dayCell = target.closest<HTMLDivElement>('.schedule-calendar-day') as HTMLDivElement | null;
+
+    if (dayCell && dayCell.dataset.date) {
+        scheduleStartDateInput.value = dayCell.dataset.date;
+        // Re-render to show the new selection
+        renderScheduleCalendar(scheduleCalendarDate.getFullYear(), scheduleCalendarDate.getMonth());
+    }
+}
+
 function openScheduleModal(programId: string) {
     const programs = loadUserData<CustomProgram[]>('customPrograms', []);
     const program = programs.find(p => p.id === programId);
@@ -1312,15 +1616,17 @@ function openScheduleModal(programId: string) {
     scheduleModalTitle.textContent = `Schedule: ${program.name}`;
     scheduleProgramForm.dataset.programId = programId;
     
-    // Reset the date input value and checkboxes to a default state
-    (scheduleProgramForm.querySelector('#schedule-start-date') as HTMLInputElement).value = '';
+    // Reset date state and render mini-calendar
+    scheduleCalendarDate = new Date();
+    scheduleStartDateInput.value = ''; // Clear previous selection
+    renderScheduleCalendar(scheduleCalendarDate.getFullYear(), scheduleCalendarDate.getMonth());
+
+    // Reset checkboxes to a default state
     const dayCheckboxes = scheduleProgramForm.querySelectorAll<HTMLInputElement>('input[name="schedule-day"]');
     dayCheckboxes.forEach(cb => {
-        // Set a default schedule like M/W/F
         const day = parseInt(cb.value);
         cb.checked = [1, 3, 5].includes(day);
     });
-
 
     scheduleProgramModal.classList.remove('hidden');
 }
@@ -1333,11 +1639,10 @@ function handleSaveSchedule(event: SubmitEvent) {
     event.preventDefault();
     const form = event.target as HTMLFormElement;
     const programId = form.dataset.programId;
-    const startDateInput = form.querySelector('#schedule-start-date') as HTMLInputElement;
     const dayCheckboxes = form.querySelectorAll<HTMLInputElement>('input[name="schedule-day"]:checked');
 
-    if (!programId || !startDateInput.value) {
-        alert("Please select a start date.");
+    if (!programId || !scheduleStartDateInput.value) {
+        alert("Please select a start date from the calendar.");
         return;
     }
 
@@ -1363,7 +1668,7 @@ function handleSaveSchedule(event: SubmitEvent) {
         return;
     }
 
-    const startDate = new Date(startDateInput.value + 'T00:00:00');
+    const startDate = new Date(scheduleStartDateInput.value + 'T00:00:00');
     let currentWorkoutIndex = 0;
     let scheduledCount = 0;
     
@@ -1450,220 +1755,12 @@ function handleStartWorkoutFromModal() {
     }
 }
 
-
-// --- Authentication Logic ---
-
-function showAuthError(message: string) {
-    authError.textContent = message;
-    authError.classList.remove('hidden');
-}
-
-function clearAuthError() {
-    authError.textContent = '';
-    authError.classList.add('hidden');
-}
-
-function handleRegister(event: SubmitEvent) {
-    event.preventDefault();
-    clearAuthError();
-    const formData = new FormData(registerForm);
-    const username = (formData.get('username') as string || '').trim();
-    const password = formData.get('password') as string;
-    const secretQuestion = formData.get('secret-question') as string;
-    const secretAnswer = (formData.get('secret-answer') as string || '').trim();
-
-    if (!username || !password) {
-        showAuthError('Username and password cannot be empty.');
-        return;
-    }
-    if (!secretQuestion || !secretAnswer) {
-        showAuthError('Please provide a secret question and answer for account recovery.');
-        return;
-    }
-
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-    const userExists = users.some((user: any) => user.username.toLowerCase() === username.toLowerCase());
-
-    if (userExists) {
-        showAuthError('Username already taken. Please choose another.');
-        return;
-    }
-
-    // In a real app, hash the password!
-    users.push({ username, password, secretQuestion, secretAnswer });
-    localStorage.setItem('users', JSON.stringify(users));
-
-    alert('Registration successful! Please log in.');
-    switchToLoginView();
-}
-
-function handleLogin(event: SubmitEvent) {
-    event.preventDefault();
-    clearAuthError();
-    const formData = new FormData(loginForm);
-    const username = (formData.get('username') as string || '').trim();
-    const password = formData.get('password') as string;
-
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-    const user = users.find((u: any) => u.username.toLowerCase() === username.toLowerCase());
-
-    // In a real app, compare hashed passwords!
-    if (!user || user.password !== password) {
-        showAuthError('Invalid username or password.');
-        return;
-    }
-
-    // Success
-    loggedInUser = user.username;
-    if (stayLoggedInCheckbox.checked) {
-        localStorage.setItem('loggedInUser', username);
-    } else {
-        sessionStorage.setItem('loggedInUser', username);
-    }
-    
-    initializeApp();
-}
-
-function handleLogout() {
-    loggedInUser = null;
-    localStorage.removeItem('loggedInUser');
-    sessionStorage.removeItem('loggedInUser');
-    window.location.reload(); // Easiest way to reset all state
-}
-
-function handleForgotPasswordRequest(event: SubmitEvent) {
-    event.preventDefault();
-    clearAuthError();
-    const formData = new FormData(forgotPasswordRequestForm);
-    const username = (formData.get('username') as string || '').trim();
-
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-    const user = users.find((u: any) => u.username.toLowerCase() === username.toLowerCase());
-
-    if (!user) {
-        showAuthError('Username not found.');
-        return;
-    }
-    if (!user.secretQuestion) {
-        showAuthError('This account does not have a secret question set up for recovery.');
-        return;
-    }
-
-    userToResetPassword = user.username;
-    secretQuestionDisplay.textContent = user.secretQuestion;
-    forgotPasswordRequestForm.classList.add('hidden');
-    forgotPasswordResetForm.classList.remove('hidden');
-}
-
-function handleResetPasswordSubmit(event: SubmitEvent) {
-    event.preventDefault();
-    clearAuthError();
-    if (!userToResetPassword) return; // Should not happen
-
-    const formData = new FormData(forgotPasswordResetForm);
-    const answer = (formData.get('secret-answer') as string || '').trim();
-    const newPassword = formData.get('new-password') as string;
-
-    if (!answer || !newPassword) {
-        showAuthError('Please fill out all fields.');
-        return;
-    }
-
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-    const userIndex = users.findIndex((u: any) => u.username === userToResetPassword);
-    
-    if (userIndex === -1) {
-        showAuthError('An unexpected error occurred. Please try again.');
-        return;
-    }
-    const user = users[userIndex];
-
-    // Case-insensitive comparison for the secret answer
-    if (user.secretAnswer.toLowerCase() !== answer.toLowerCase()) {
-        showAuthError('The secret answer is incorrect.');
-        return;
-    }
-
-    // Success - update password
-    users[userIndex].password = newPassword;
-    localStorage.setItem('users', JSON.stringify(users));
-
-    alert('Password has been reset successfully. Please log in with your new password.');
-    userToResetPassword = null;
-    switchToLoginView();
-}
-
-
-/**
- * Switches the auth UI to the login view.
- */
-function switchToLoginView() {
-    clearAuthError();
-    loginForm.reset();
-    registerView.classList.add('hidden');
-    forgotPasswordView.classList.add('hidden');
-    loginView.classList.remove('hidden');
-}
-
-/**
- * Checks for a logged-in user in localStorage or sessionStorage.
- * Initializes the app if a user is found, otherwise shows the auth screen.
- */
-function checkLoginStatus() {
-    const user = localStorage.getItem('loggedInUser') || sessionStorage.getItem('loggedInUser');
-    if (user) {
-        loggedInUser = user;
-        initializeApp();
-    } else {
-        authScreen.classList.remove('hidden');
-        appContainer.classList.add('hidden');
-    }
-}
-
 /**
  * Main entry point for the application.
  */
 function main() {
-  // --- Auth View Listeners ---
-  loginForm.addEventListener('submit', handleLogin);
-  registerForm.addEventListener('submit', handleRegister);
-  logoutBtn.addEventListener('click', handleLogout);
-  forgotPasswordRequestForm.addEventListener('submit', handleForgotPasswordRequest);
-  forgotPasswordResetForm.addEventListener('submit', handleResetPasswordSubmit);
-
-  showRegisterViewBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    clearAuthError();
-    registerForm.reset();
-    loginView.classList.add('hidden');
-    forgotPasswordView.classList.add('hidden');
-    registerView.classList.remove('hidden');
-  });
-
-  showLoginViewBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    switchToLoginView();
-  });
-
-  showForgotPasswordViewBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    clearAuthError();
-    forgotPasswordRequestForm.reset();
-    forgotPasswordResetForm.reset();
-    loginView.classList.add('hidden');
-    registerView.classList.add('hidden');
-    forgotPasswordView.classList.remove('hidden');
-    forgotPasswordRequestForm.classList.remove('hidden');
-    forgotPasswordResetForm.classList.add('hidden');
-  });
-
-  backToLoginBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    switchToLoginView();
-  });
-  
-  // Check login status on page load
-  checkLoginStatus();
+  // App starts directly, no login check.
+  initializeApp();
 }
 
 

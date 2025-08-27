@@ -17,88 +17,8 @@
   </script>
 </head>
 <body>
-  <!-- Authentication Screen -->
-  <div id="auth-screen">
-    <div class="auth-container">
-      <div id="login-view">
-        <form id="login-form">
-          <h2>Log In</h2>
-          <div class="form-group">
-            <label for="login-username">Username</label>
-            <input type="text" id="login-username" name="username" required autocomplete="username">
-          </div>
-          <div class="form-group">
-            <label for="login-password">Password</label>
-            <input type="password" id="login-password" name="password" required autocomplete="current-password">
-          </div>
-          <div class="checkbox-group">
-            <input type="checkbox" id="stay-logged-in">
-            <label for="stay-logged-in" class="checkbox-label">Stay logged in</label>
-          </div>
-          <button type="submit">Log In</button>
-        </form>
-        <p class="auth-switch">Don't have an account? <a href="#" id="show-register-view">Register</a></p>
-        <p class="auth-switch"><a href="#" id="show-forgot-password-view" class="forgot-password-link">Forgot Password?</a></p>
-      </div>
-
-      <div id="register-view" class="hidden">
-        <form id="register-form">
-          <h2>Create Account</h2>
-          <div class="form-group">
-            <label for="register-username">Username</label>
-            <input type="text" id="register-username" name="username" required autocomplete="username">
-          </div>
-          <div class="form-group">
-            <label for="register-password">Password</label>
-            <input type="password" id="register-password" name="password" required autocomplete="new-password">
-          </div>
-          <hr>
-          <p class="form-info">For account recovery, please provide a secret question and answer.</p>
-          <div class="form-group">
-            <label for="secret-question">Secret Question</label>
-            <input type="text" id="secret-question" name="secret-question" placeholder="e.g., What was your first pet's name?" required>
-          </div>
-          <div class="form-group">
-            <label for="register-secret-answer">Secret Answer</label>
-            <input type="text" id="register-secret-answer" name="secret-answer" required>
-          </div>
-          <button type="submit">Register</button>
-        </form>
-        <p class="auth-switch">Already have an account? <a href="#" id="show-login-view">Log In</a></p>
-      </div>
-
-      <div id="forgot-password-view" class="hidden">
-        <form id="forgot-password-request-form">
-          <h2>Forgot Password</h2>
-          <div class="form-group">
-            <label for="forgot-username">Username</label>
-            <input type="text" id="forgot-username" name="username" required autocomplete="username">
-          </div>
-          <button type="submit">Get Secret Question</button>
-        </form>
-        <form id="forgot-password-reset-form" class="hidden">
-          <h2>Reset Password</h2>
-          <p class="form-info">Answer your secret question to reset your password.</p>
-          <p id="secret-question-display" class="secret-question-text"></p>
-          <div class="form-group">
-            <label for="reset-secret-answer">Your Secret Answer</label>
-            <input type="text" id="reset-secret-answer" name="secret-answer" required>
-          </div>
-          <div class="form-group">
-            <label for="new-password">New Password</label>
-            <input type="password" id="new-password" name="new-password" required autocomplete="new-password">
-          </div>
-          <button type="submit">Reset Password</button>
-        </form>
-        <p class="auth-switch"><a href="#" id="back-to-login">Back to Login</a></p>
-      </div>
-
-      <p id="auth-error" class="hidden"></p>
-    </div>
-  </div>
-
   <!-- App Container -->
-  <div id="app-container" class="hidden">
+  <div id="app-container">
     <header>
       <div class="nav-and-user">
         <div class="header-title-wrapper">
@@ -127,13 +47,6 @@
             <span>Profile</span>
           </button>
         </nav>
-        <div class="header-user-info">
-          <span id="header-username"></span>
-          <button id="logout-btn" class="btn-tertiary">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M16 17v-3H9v-4h7V7l5 5-5 5zM14 2a2 2 0 0 1 2 2v2h-2V4H5v16h9v-2h2v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9z"></path></svg>
-            <span>Log Out</span>
-          </button>
-        </div>
       </div>
     </header>
     <main>
@@ -176,9 +89,11 @@
               <h3>Total Workouts Completed</h3>
               <p id="workouts-completed-stat">0</p>
           </div>
-          <div class="placeholder-section">
-            <h3>More Stats Coming Soon</h3>
-            <p>Detailed exercise history, personal records, and progress charts will be available here.</p>
+          <div id="completed-workouts-list-container" class="library-section">
+            <h3>Completed Sessions</h3>
+            <div id="completed-workouts-list">
+                <!-- JS will populate this list of completed workouts -->
+            </div>
           </div>
       </div>
 
@@ -206,14 +121,15 @@
                   <div class="spinner"></div>
               </div>
               <div id="program-ideas-container"></div>
-              <div class="long-term-plan-generator">
-                <h4>Generate a Structured Long-Term Plan</h4>
-                <div class="discover-duration-options" id="discover-duration-options">
-                  <button class="discover-duration-btn" data-duration="8">Generate 8-Week Plan</button>
-                  <button class="discover-duration-btn" data-duration="12">Generate 12-Week Plan</button>
-                  <button class="discover-duration-btn" data-duration="16">Generate 16-Week Plan</button>
+              <hr>
+              <form id="generate-from-idea-form" class="generate-from-idea-form">
+                <h4>Generate a Program from Your Idea</h4>
+                <p class="form-info">Describe your goal, desired duration, and any other specifics. The AI will create a tailored plan for you.</p>
+                <div class="form-group">
+                  <textarea id="program-idea-input" name="program-idea-input" rows="4" placeholder="e.g., An 8-week program to improve my golf swing power."></textarea>
                 </div>
-              </div>
+                <button type="submit" id="generate-from-idea-btn">Generate My Program</button>
+              </form>
             </div>
         </div>
       </div>
@@ -223,8 +139,8 @@
         <h2>Your Profile</h2>
         <form id="profile-form">
           <div class="form-group">
-            <label for="name">Username</label>
-            <input type="text" id="name" name="name" placeholder="Enter your name" readonly>
+            <label for="name">Name</label>
+            <input type="text" id="name" name="name" placeholder="Enter your name" autocomplete="name">
           </div>
           <div class="form-group-inline">
               <div class="form-group">
@@ -316,22 +232,36 @@
         <button class="modal-close-btn btn-icon" aria-label="Close">&times;</button>
         <h2 id="schedule-modal-title">Schedule Program</h2>
         <form id="schedule-program-form">
-          <p>Select a start date and the days of the week you want to perform the workouts. The program will be scheduled on those days.</p>
-          <div class="form-group">
-            <label for="schedule-start-date">Program Start Date</label>
-            <input type="date" id="schedule-start-date" name="schedule-start-date" required>
-          </div>
-          <div class="form-group">
-              <label>Schedule on Days:</label>
-              <div class="day-selector">
-                  <input type="checkbox" id="day-sun" name="schedule-day" value="0"><label for="day-sun">Sun</label>
-                  <input type="checkbox" id="day-mon" name="schedule-day" value="1" checked><label for="day-mon">Mon</label>
-                  <input type="checkbox" id="day-tue" name="schedule-day" value="2"><label for="day-tue">Tue</label>
-                  <input type="checkbox" id="day-wed" name="schedule-day" value="3" checked><label for="day-wed">Wed</label>
-                  <input type="checkbox" id="day-thu" name="schedule-day" value="4"><label for="day-thu">Thu</label>
-                  <input type="checkbox" id="day-fri" name="schedule-day" value="5" checked><label for="day-fri">Fri</label>
-                  <input type="checkbox" id="day-sat" name="schedule-day" value="6"><label for="day-sat">Sat</label>
+          <div class="schedule-form-layout">
+            <div class="form-group">
+              <label>Program Start Date</label>
+              <!-- This input is now hidden and will be populated by the mini-calendar -->
+              <input type="hidden" id="schedule-start-date" name="schedule-start-date" required>
+              <div class="schedule-calendar-wrapper">
+                <div class="schedule-calendar-header">
+                  <button type="button" id="schedule-prev-month-btn" class="btn-tertiary btn-icon" aria-label="Previous month">&lt;</button>
+                  <h4 id="schedule-calendar-month-year"></h4>
+                  <button type="button" id="schedule-next-month-btn" class="btn-tertiary btn-icon" aria-label="Next month">&gt;</button>
+                </div>
+                <div id="schedule-calendar-grid-header">
+                  <div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div>
+                </div>
+                <div id="schedule-calendar-grid"></div>
               </div>
+            </div>
+            <div class="form-group">
+                <label>Schedule on Days:</label>
+                <p class="form-info">Select the days of the week you want to perform the workouts. The program will be scheduled sequentially on these days starting from your chosen date.</p>
+                <div class="day-selector">
+                    <input type="checkbox" id="day-sun" name="schedule-day" value="0"><label for="day-sun">Sun</label>
+                    <input type="checkbox" id="day-mon" name="schedule-day" value="1" checked><label for="day-mon">Mon</label>
+                    <input type="checkbox" id="day-tue" name="schedule-day" value="2"><label for="day-tue">Tue</label>
+                    <input type="checkbox" id="day-wed" name="schedule-day" value="3" checked><label for="day-wed">Wed</label>
+                    <input type="checkbox" id="day-thu" name="schedule-day" value="4"><label for="day-thu">Thu</label>
+                    <input type="checkbox" id="day-fri" name="schedule-day" value="5" checked><label for="day-fri">Fri</label>
+                    <input type="checkbox" id="day-sat" name="schedule-day" value="6"><label for="day-sat">Sat</label>
+                </div>
+            </div>
           </div>
           <div class="modal-actions">
             <button type="submit" id="save-schedule-btn">Save Schedule</button>
@@ -405,6 +335,27 @@
       </div>
     </div>
 
+    <!-- Workout History Modal -->
+    <div id="workout-history-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <button class="modal-close-btn btn-icon" aria-label="Close">&times;</button>
+        <h2 id="history-modal-title">Workout Details</h2>
+        <div class="history-modal-meta">
+            <p id="history-modal-date"></p>
+            <p id="history-modal-intensity"></p>
+        </div>
+        <div class="history-modal-notes">
+            <h4>Notes</h4>
+            <p id="history-modal-notes"></p>
+        </div>
+        <hr>
+        <h3>Performance Log</h3>
+        <div id="history-modal-exercises-container" class="details-modal-workouts-container">
+          <!-- JS will populate exercises and performance tables here -->
+        </div>
+      </div>
+    </div>
+
 
     <!-- Templates for Dynamic Form -->
     <template id="workout-block-template">
@@ -430,7 +381,9 @@
               <input type="text" class="exercise-metric-input" placeholder="e.g., 10-12 or 500" required>
               <select class="exercise-unit-select">
                   <option value="reps">reps</option>
+                  <option value="seconds">seconds</option>
                   <option value="meters">meters</option>
+                  <option value="feet">feet</option>
                   <option value="yards">yards</option>
                   <option value="miles">miles</option>
               </select>

@@ -58,6 +58,12 @@ p {
   color: var(--text-color-secondary);
 }
 
+.form-info {
+    font-size: 0.9rem;
+    font-style: italic;
+    margin-bottom: 0.5rem;
+}
+
 a {
   color: var(--primary-color);
   text-decoration: none;
@@ -208,42 +214,6 @@ input:focus, select:focus, textarea:focus {
     color: var(--text-color-secondary);
 }
 
-/* --- Authentication Screen --- */
-#auth-screen {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  width: 100vw;
-  background-color: #111;
-  background-image:
-    radial-gradient(at 20% 80%, hsla(150, 70%, 30%, 0.3) 0px, transparent 50%),
-    radial-gradient(at 80% 20%, hsla(210, 70%, 40%, 0.2) 0px, transparent 50%),
-    radial-gradient(at 70% 80%, hsla(280, 60%, 30%, 0.15) 0px, transparent 50%);
-}
-
-.auth-container {
-  background-color: color-mix(in srgb, var(--surface-color) 85%, transparent);
-  backdrop-filter: blur(10px);
-  padding: 2.5rem;
-  border-radius: var(--border-radius-lg);
-  width: 100%;
-  max-width: 420px;
-  border: 1px solid var(--border-color);
-  text-align: center;
-  box-shadow: var(--shadow-lg);
-}
-.auth-switch { margin-top: 1.5rem; }
-#auth-error {
-  background-color: color-mix(in srgb, var(--danger-color) 15%, transparent);
-  color: var(--danger-color);
-  padding: 10px;
-  border-radius: var(--border-radius-md);
-  margin-top: 1rem;
-  border: 1px solid var(--danger-color);
-  font-size: 0.9rem;
-}
-
 /* --- Main App Container --- */
 #app-container {
   display: flex;
@@ -283,6 +253,8 @@ nav#main-nav {
   display: flex;
   gap: 0.5rem;
   align-items: center;
+  /* This ensures the nav takes the central space */
+  margin: 0 auto;
 }
 .nav-tab {
   background: none;
@@ -442,11 +414,47 @@ h2.screen-title {
 .exercise-card {
   margin-bottom: 1.5rem;
 }
-.exercise-card .details {
+.exercise-card .exercise-details {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
   margin-bottom: 1rem;
-  font-style: italic;
+}
+.exercise-metric {
+  background: transparent;
   color: var(--primary-color);
   font-weight: 500;
+  font-size: 1rem;
+  padding: 4px 8px;
+  border-radius: var(--border-radius-md);
+  border: 1px dashed transparent;
+}
+.exercise-metric:hover {
+  background-color: var(--surface-color-light);
+  border-color: var(--border-color);
+  transform: none;
+  box-shadow: none;
+}
+.metric-editor {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  background-color: var(--surface-color-light);
+  padding: 0.75rem;
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--border-color);
+  margin-top: 0.5rem;
+}
+.metric-editor-wrapper {
+  display: inline-block;
+}
+.metric-editor input, .metric-editor select {
+  padding: 8px;
+  font-size: 0.9rem;
+}
+.metric-editor button {
+    padding: 8px 12px;
+    font-size: 0.9rem;
 }
 .sets-table {
   width: 100%;
@@ -458,6 +466,7 @@ h2.screen-title {
   border: 1px solid var(--border-color);
   padding: 12px;
   text-align: center;
+  vertical-align: middle;
 }
 .sets-table th {
   background-color: var(--background-color);
@@ -468,31 +477,64 @@ h2.screen-title {
   text-align: center;
   background-color: var(--surface-color);
 }
-.set-actions button {
-  border: 1px solid var(--border-color);
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  margin: 0 4px;
-  color: var(--text-color-secondary);
+.set-status-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--border-color);
+  background-color: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0; /* Override default button padding */
 }
-.set-actions button:hover {
+.set-status-btn:hover {
+  border-color: var(--primary-color);
   transform: none;
   box-shadow: none;
-  background-color: var(--surface-color-light);
 }
-.sets-table tr.done {
+tr.done .set-status-btn {
+  background-color: var(--success-color);
+  border-color: var(--success-color);
+}
+tr.done .set-status-btn:hover {
+    background-color: color-mix(in srgb, var(--success-color) 80%, white);
+}
+tr.done {
   color: var(--text-color-secondary);
 }
-.sets-table tr.done td:not(.set-actions) {
-  text-decoration: line-through;
+
+
+/* --- History Screen --- */
+#completed-workouts-list-container {
+  margin-top: 2rem;
 }
-.sets-table tr.done button.set-done-btn,
-.sets-table tr.missed button.set-missed-btn {
-  color: var(--text-color);
+#completed-workouts-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
 }
-.sets-table tr.done button.set-done-btn { background-color: var(--success-color); }
-.sets-table tr.missed button.set-missed-btn { background-color: var(--danger-color); }
+.history-workout-card {
+  background-color: var(--surface-color-light);
+  padding: 1.25rem;
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.history-workout-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary-color);
+}
+.history-workout-card h4 {
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+}
+.history-workout-card p {
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+
 
 /* --- Library Screen --- */
 #custom-programs-container, #program-ideas-container {
@@ -511,6 +553,20 @@ h2.screen-title {
     border-color: var(--surface-color-light);
 }
 .program-card-actions { margin-top: 1rem; }
+
+.generate-from-idea-form {
+  gap: 0.75rem; /* Tighter gap for this specific form */
+}
+
+.generate-from-idea-form h4 {
+  font-size: 1.1rem;
+  margin-bottom: 0.25rem;
+}
+
+.generate-from-idea-form button {
+    width: 100%;
+}
+
 
 /* --- Modals --- */
 .modal-overlay {
@@ -553,6 +609,181 @@ h2.screen-title {
   display: flex;
   justify-content: flex-end;
 }
+
+/* In Program Details & Workout Overview Modals */
+.details-modal-workouts-container {
+  margin-top: 1rem;
+  max-height: 45vh;
+  overflow-y: auto;
+  background-color: var(--background-color);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--border-color);
+  padding: 0.5rem 1rem;
+}
+
+.details-workout-block h4 { /* For the multi-day program details modal */
+  margin-top: 1rem;
+  margin-bottom: 0.75rem;
+  color: var(--primary-color);
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+}
+.details-workout-block:first-child h4 {
+    margin-top: 0;
+}
+
+.details-workout-block ul {
+  list-style-type: none;
+  padding-left: 0;
+}
+
+.details-workout-block li {
+  padding: 0.75rem 0.25rem;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-color-secondary);
+  font-size: 0.9rem;
+}
+
+.details-workout-block li:last-child {
+  border-bottom: none;
+}
+
+.details-workout-block li strong {
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+/* --- History Modal --- */
+#workout-history-modal .modal-content {
+  max-width: 800px;
+}
+.history-modal-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: -0.5rem;
+  margin-bottom: 1rem;
+  color: var(--text-color-secondary);
+  font-size: 0.9rem;
+}
+.history-modal-meta p strong {
+  color: var(--text-color);
+}
+.history-modal-notes {
+  background-color: var(--background-color);
+  padding: 1rem;
+  border-radius: var(--border-radius-md);
+}
+.history-modal-notes h4 {
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+}
+.history-modal-notes p {
+  font-style: italic;
+}
+.history-exercise-block {
+  margin-bottom: 1.5rem;
+}
+.history-exercise-block:last-child {
+  margin-bottom: 0;
+}
+.history-exercise-block h4 {
+  font-size: 1.2rem;
+  color: var(--primary-color);
+}
+.status-icon {
+  width: 24px;
+  height: 24px;
+}
+.status-icon.done {
+  color: var(--success-color);
+}
+.status-icon.missed {
+  color: var(--danger-color);
+}
+
+
+/* --- Schedule Program Modal --- */
+.schedule-form-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  align-items: flex-start;
+}
+
+.schedule-calendar-wrapper {
+  background-color: var(--background-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  padding: 1rem;
+}
+
+.schedule-calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+.schedule-calendar-header .btn-icon {
+  width: 32px;
+  height: 32px;
+  font-weight: 600;
+}
+.schedule-calendar-header h4 {
+  font-size: 1rem;
+}
+
+#schedule-calendar-grid-header, #schedule-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  text-align: center;
+}
+
+#schedule-calendar-grid-header {
+  font-size: 0.8rem;
+  color: var(--text-color-secondary);
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.schedule-calendar-day {
+  font-size: 0.85rem;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+.schedule-calendar-day:not(.other-month):hover {
+  background-color: var(--surface-color-light);
+}
+
+.schedule-calendar-day.other-month {
+  color: var(--text-color-secondary);
+  opacity: 0.5;
+  cursor: default;
+}
+
+.schedule-calendar-day.today {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.schedule-calendar-day.selected {
+  background-color: var(--primary-color);
+  color: var(--primary-color-dark);
+  font-weight: 600;
+}
+.schedule-calendar-day.selected:hover {
+  background-color: var(--primary-color-hover);
+}
+
+.day-selector { margin-top: 1rem; }
+
 /* Create Program Modal */
 .workout-block {
     background-color: var(--background-color);
@@ -644,12 +875,7 @@ h2.screen-title {
   
   nav#main-nav {
     flex-wrap: wrap; /* Allow tabs to wrap */
-  }
-
-  .header-user-info {
-    position: absolute;
-    top: 1.25rem;
-    right: 2rem;
+    margin: 0; /* Reset margin */
   }
   
   .header-title-wrapper {
@@ -665,13 +891,6 @@ h2.screen-title {
 
   header {
     padding: 1rem;
-  }
-
-  .header-user-info {
-    position: static;
-    width: 100%;
-    justify-content: space-between;
-    margin-top: 1rem;
   }
 
   .nav-and-user {
@@ -708,6 +927,16 @@ h2.screen-title {
     max-width: 95vw;
     padding: 1.5rem;
   }
+  
+  .schedule-form-layout {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  
+  .schedule-calendar-day {
+    width: 32px;
+    height: 32px;
+  }
 
   /* Responsive Sets Table */
   .sets-table thead {
@@ -741,13 +970,6 @@ h2.screen-title {
   .sets-table input {
     width: 100px;
     padding: 8px;
-  }
-  .set-actions {
-    justify-content: flex-end;
-    gap: 0.5rem;
-  }
-  .set-actions::before {
-      display: none; /* Hide redundant "Actions" label */
   }
   
   /* Responsive Create Program Form */
@@ -793,18 +1015,7 @@ h2.screen-title {
 }
 
 @media (max-width: 480px) {
-    .header-user-info #logout-btn span {
-        display: none;
-    }
-    .header-user-info #logout-btn {
-        padding: 8px;
-    }
-    
     .nav-tab {
         padding: 8px;
-    }
-
-    .auth-container {
-        padding: 1.5rem;
     }
 }
