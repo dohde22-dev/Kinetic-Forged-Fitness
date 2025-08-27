@@ -1,3 +1,12 @@
-git add package.json
-git commit -m "feat: Add and configure package.json for Netlify"
-git push
+{
+  "name": "kinetic-forged-fitness",
+  "version": "1.0.0",
+  "description": "Kinetic Forged Fitness is an intelligent fitness partner that forges personalized workout plans to build your momentum and help you achieve your goals.",
+  "private": true,
+  "scripts": {
+    "build": "mkdir -p dist && esbuild index.tsx --bundle --outfile=dist/bundle.js --loader:.tsx=tsx && cp index.html dist/index.html && cp index.css dist/index.css"
+  },
+  "devDependencies": {
+    "esbuild": "^0.20.2"
+  }
+}
